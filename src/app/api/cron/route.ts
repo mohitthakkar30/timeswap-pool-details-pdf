@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { CONFIG } from '@/config';
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const response = await fetch(`${CONFIG.BASE_URL}/api/generate-report`, {
       method: 'POST',

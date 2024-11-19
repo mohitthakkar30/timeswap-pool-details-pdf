@@ -12,7 +12,7 @@ interface PoolResult {
   name: string;
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     // Create reports directory if it doesn't exist
     const reportsDir = path.join(process.cwd(), 'public', 'reports');
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     // Create PDF
     const doc = new jsPDF();
-    const timestamp = new Date().toISOString();
+    // const timestamp = new Date().toISOString();
 
     // Add title
     doc.setFontSize(20);
