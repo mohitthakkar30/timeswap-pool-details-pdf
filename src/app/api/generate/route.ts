@@ -1,30 +1,14 @@
-// src/app/api/generate/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { pools } from '@/types/pools';
 import { jsPDF } from 'jspdf';
-import fs from 'fs';
-import path from 'path';
 
-interface PoolResult {
-  success: boolean;
-  data?: any;
-  error?: string;
-  name: string;
-}
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300; // Set maximum duration to 5 minutes
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    // Create reports directory if it doesn't exist
-    const reportsDir = path.join(process.cwd(), 'public', 'reports');
-    console.log('Reports directory:', reportsDir);
-    
-    if (!fs.existsSync(reportsDir)) {
-      fs.mkdirSync(reportsDir, { recursive: true });
-      console.log('Created reports directory');
-    }
-
     // Fetch data for all pools with error handling
-    const poolsData: PoolResult[] = await Promise.all(
+    const poolsData = await Promise.all(
       pools.map(async (pool) => {
         try {
           const response = await fetch(pool.summary_url);
@@ -50,7 +34,6 @@ export async function GET() {
 
     // Create PDF
     const doc = new jsPDF();
-    // const timestamp = new Date().toISOString();
 
     // Add title
     doc.setFontSize(20);
@@ -64,33 +47,30 @@ export async function GET() {
 
     // Add data for each pool
     poolsData.forEach((result, index) => {
-      // Add new page if not enough space
       if (yOffset > 250) {
         doc.addPage();
         yOffset = 20;
       }
 
-      // Pool Header
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       doc.text(`Pool ${index + 1}: ${result.name}`, 20, yOffset);
       yOffset += 10;
 
-      // If pool data fetch failed
       if (!result.success) {
         doc.setFontSize(10);
         doc.setFont("helvetica", "italic");
-        doc.setTextColor(255, 0, 0); // Red color for error
+        doc.setTextColor(255, 0, 0);
         doc.text(`Failed to fetch data: ${result.error}`, 25, yOffset);
-        doc.setTextColor(0, 0, 0); // Reset to black
+        doc.setTextColor(0, 0, 0);
         yOffset += 10;
       } else {
         const pool_info = result.data.pool_info;
         
         try {
-          // Pool Details
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
+
           const details = [
             `Chain: ${pool_info?.chain || 'N/A'}`,
             `Tokens: ${pool_info?.token0?.formatted_name || 'N/A'} - ${pool_info?.token1?.formatted_name || 'N/A'}`,
@@ -104,7 +84,6 @@ export async function GET() {
             yOffset += 7;
           });
 
-          // Lending Stats
           if (pool_info?.aggregate_lend) {
             yOffset += 5;
             doc.setFont("helvetica", "bold");
@@ -113,19 +92,16 @@ export async function GET() {
             doc.setFont("helvetica", "normal");
 
             const lendingAmount = pool_info.aggregate_lend.total_amount_lent?.[0]?.usd || 0;
-            const lendStats = [
+            [
               `Total Lent: $${lendingAmount.toLocaleString()}`,
               `Unique Lenders: ${pool_info.aggregate_lend.unique_lenders || 0}`,
               `Transactions: ${pool_info.aggregate_lend.txn_count || 0}`,
-            ];
-
-            lendStats.forEach(stat => {
+            ].forEach(stat => {
               doc.text(stat, 25, yOffset);
               yOffset += 7;
             });
           }
 
-          // Borrowing Stats
           if (pool_info?.aggregate_borrow) {
             yOffset += 5;
             doc.setFont("helvetica", "bold");
@@ -134,19 +110,16 @@ export async function GET() {
             doc.setFont("helvetica", "normal");
 
             const borrowingAmount = pool_info.aggregate_borrow.total_amount_borrowed?.[0]?.usd || 0;
-            const borrowStats = [
+            [
               `Total Borrowed: $${borrowingAmount.toLocaleString()}`,
               `Unique Borrowers: ${pool_info.aggregate_borrow.unique_borrowers || 0}`,
               `Transactions: ${pool_info.aggregate_borrow.txn_count || 0}`,
-            ];
-
-            borrowStats.forEach(stat => {
+            ].forEach(stat => {
               doc.text(stat, 25, yOffset);
               yOffset += 7;
             });
           }
         } catch (error) {
-          console.error(`Error processing pool data for ${result.name}:`, error);
           doc.setFontSize(10);
           doc.setFont("helvetica", "italic");
           doc.setTextColor(255, 0, 0);
@@ -156,41 +129,19 @@ export async function GET() {
         }
       }
 
-      // Add space between pools
       yOffset += 15;
     });
 
-    // Save PDF with timestamp
-    const currentDate = new Date().toISOString().split('T')[0];
-    const currentTime = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
-    const fileName = `timeswap-report-${currentDate}-${currentTime}.pdf`;
-    const filePath = path.join(reportsDir, fileName);
+    // Convert PDF to binary data
+    const pdfOutput = doc.output('arraybuffer');
 
-    // Save the PDF
-    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
-    fs.writeFileSync(filePath, pdfBuffer);
-    
-    console.log('PDF saved to:', filePath);
-    
-    // Verify file exists
-    if (fs.existsSync(filePath)) {
-      console.log('File successfully created');
-    } else {
-      console.log('File creation failed');
-    }
-
-    // Return success response with file URL
-    return NextResponse.json({
-      success: true,
-      message: 'Report generated successfully',
-      file: `/reports/${fileName}`,
-      timestamp: new Date().toISOString(),
-      filePath: filePath, // For debugging
-      poolResults: poolsData.map(result => ({
-        name: result.name,
-        success: result.success,
-        error: result.error
-      }))
+    // Return PDF with proper headers
+    return new NextResponse(pdfOutput, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="timeswap-report-${new Date().toISOString().split('T')[0]}.pdf"`,
+        'Content-Length': pdfOutput.byteLength.toString(),
+      },
     });
 
   } catch (error) {
@@ -200,7 +151,6 @@ export async function GET() {
         success: false, 
         message: 'Failed to generate report',
         error: (error as Error).message,
-        stack: (error as Error).stack // For debugging
       },
       { status: 500 }
     );
