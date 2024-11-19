@@ -22,7 +22,6 @@ export default function GenerateReport() {
         router.refresh(); // Refresh the page to update the reports list
       } else {
         setError(data.message || 'Failed to generate report');
-        alert('Failed to generate report');
       }
     } catch (err) {
       console.error('Error generating report:', err);
