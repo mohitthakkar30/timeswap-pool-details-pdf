@@ -3,7 +3,7 @@ import { pools } from '@/types/pools';
 import { jsPDF } from 'jspdf';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // Set maximum duration to 5 minutes
+export const maxDuration = 59; // Set maximum duration to 5 minutes
 
 export async function GET(req: NextRequest) {
   try {
